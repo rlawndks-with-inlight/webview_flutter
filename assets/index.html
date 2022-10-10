@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Example</title>
+</head>
+<body>
+<h1>
+    TEST Example!!!
+</h1>
+
+<script>
+    window.addEventListener("flutterInAppWebViewPlatformReady", function(event) {
+        window.flutter_inappwebview.callHandler('handlerFoo')
+            .then(function(result) {
+            console.log(JSON.stringify(result));
+            window.flutter_inappwebview
+                .callHandler('handlerFooWithArgs', 1, true, ['bar', 5], {foo: 'baz'}, result);
+        });
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.untitled">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" /> 
+   <application
+        android:label="위아"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:windowBackground="@android:color/white">
+       <!-- Naver API -->
+       <meta-data
+           android:name="com.naver.sdk.clientId"
+           android:value="qLBlNVIRAwAAXAAz1oT1" />
+       <meta-data
+           android:name="com.naver.sdk.clientSecret"
+           android:value="uKgLijoUcV" />
+       <meta-data
+           android:name="com.naver.sdk.clientName"
+           android:value="위아" />
+       <meta-data
+           android:name="com.google.firebase.messaging.default_notification_channel_id"
+           android:value="high_importance_channel" />
+       <!-- Kakao API -->
+       <activity
+           android:name="com.kakao.sdk.flutter.AuthCodeCustomTabsActivity"
+           android:exported="true">
+           <intent-filter android:label="flutter_web_auth">
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <!-- Redirect URI, "kakao${YOUR_NATIVE_APP_KEY}://oauth" 형식 -->
+               <data android:scheme="kakao746c2192ff19a2d5be500ce481428445" android:host="oauth"/>
+           </intent-filter>
+       </activity>
+       <activity android:name="com.navercorp.nid.oauth.activity.NidOAuthWebViewActivity"
+           android:exported="true"
+           android:theme="@style/Theme.AppCompat">
+       </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.AppCompat"
+            android:windowBackground="@android:color/white"
+            android:windowNoTitle="true"
+            android:windowActionBar="false"
+            android:windowFullscreen="true"
+            android:windowContentOverlay="@null"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+    </application>
+    
+</manifest>
