@@ -50,6 +50,10 @@ dependencies:
   flutter_fgbg: ^0.2.0
   eraser: ^2.0.1
   path_provider: ^2.0.11
+  permission_handler: ^10.1.0
+  provider: ^6.0.4
+  mac_address: ^1.0.0
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

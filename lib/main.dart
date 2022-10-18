@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -15,70 +16,116 @@ import 'package:flutter_app_badger/flutter_app_badger.dart';
 import 'package:flutter_fgbg/flutter_fgbg.dart';
 import 'package:eraser/eraser.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:untitled/fcm.dart';
+import 'package:untitled/global.dart';
+import 'package:untitled/local_service.dart';
+import 'package:provider/provider.dart';
+import 'package:mac_address/mac_address.dart';
+
+Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    showNotification(message.data);
+    //await setBadge(message.data['table'], false);
+  } catch (e) {
+    print(e);
+  }
+}
 
 Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   if (Platform.isAndroid) {
     await AndroidInAppWebViewController.setWebContentsDebuggingEnabled(true);
   }
   await Firebase.initializeApp();
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
-  NotificationSettings settings = await messaging.requestPermission(
-    alert: true,
-    announcement: false,
-    badge: false,
-    carPlay: false,
-    criticalAlert: false,
-    provisional: false,
-    sound: true,
+
+  final AndroidNotificationChannel channel = const AndroidNotificationChannel(
+    'weare', // id
+    'High Importance Notifications', // title
+    description:
+        'This channel is used for important notifications.', // description
+    importance: Importance.max,
   );
-  messaging.getToken().then((value) => {print('Token data: ${value}')});
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  runApp(MaterialApp(home: new MyApp()));
-}
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  final FirebaseMessaging messaging = FirebaseMessaging.instance;
+  // 2.
 
-Future<File> get _localFile async {
-  Directory directory = await getApplicationDocumentsDirectory();
-  return File("${directory.path}/settings.json");
-}
-
-Future<Map<String, dynamic>> readSettingsFromFile() async {
-  final file = await _localFile;
-
-  Map<String, dynamic> settings;
-  try {
-    final contents = await file.readAsString() ?? "{}";
-    settings = jsonDecode(contents);
-  } catch (e) {
-    settings = {
-      "booleanTypeSettingA": true,
-      "booleanTypeSettingB": false,
-      "numberTypeSettingA": 0,
-      "numberTypeSettingB": 0,
-      "numberTypeSettingC": 0,
-      "stringTypeSettings": "foo",
-      "stringTypeSettings": "bar",
-    };
-
-    file.writeAsString(
-      jsonEncode(settings),
+  // 권한 및 채널 설정
+  if (Platform.isIOS) {
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
     );
+
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      showToast("푸시 알림을 이용하기 위해서 알림권한을 허용해주세요.");
+    }
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: true, // Required to display a heads up notification
+      badge: true,
+      sound: true,
+    );
+  } else {
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+  await flutterLocalNotificationsPlugin.initialize(
+      const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher_white'),
+          iOS: IOSInitializationSettings()),
+      onSelectNotification: (String? payload) async {});
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    AndroidNotification? android = message.notification?.android;
+    if (notification != null && android != null) {
+      flutterLocalNotificationsPlugin.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(channel.id, channel.name,
+              channelDescription: channel.description),
+        ),
+
+        // 넘겨줄 데이터가 있으면 아래 코드를 써주면 됨.
+        // payload: message.data['argument']
+      );
+    }
+    print('Got a message whilst in the foreground!');
+    print('Message data: ${message.data}');
+
+    if (message.notification != null) {
+      print('Message also contained a notification: ${message.notification}');
+    }
+    //setBadge(message.data['table'], false);
+  });
+  //FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage); //foreground
+  RemoteMessage? initialMessage =
+      await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    _handleMessage(initialMessage);
+  }
+  //background
+  int is_want_alarm = await LocalService.getWantAlarm();
+  if (is_want_alarm == 1) {
+    await FirebaseMessaging.instance.subscribeToTopic('weare');
+  } else {
+    await FirebaseMessaging.instance.unsubscribeFromTopic('weare');
   }
 
-  return settings;
-}
-
-Future<void> saveSettingsToFile<T>(String key, T value) async {
-  final file = await _localFile;
-  Map<String, dynamic> settings = await readSettingsFromFile();
-
-  settings.containsKey(key)
-      ? settings[key] = value
-      : settings.addAll({key: value});
-
-  await file.writeAsString(
-    jsonEncode(settings),
-  );
+  runApp(MaterialApp(home: new MyApp()));
 }
 
 void _setAlarmSetting(int num) async {
@@ -94,63 +141,165 @@ void _setAlarmSetting(int num) async {
   );
 }
 
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  Map<String, dynamic> settings = await readSettingsFromFile();
-  int alarm_cnt = settings['alarm_cnt'] ?? 0;
-  int notice_cnt = settings['notice_cnt'] ?? 0;
-  if (message.data['table'] == 'alarm') {
-    alarm_cnt++;
-    saveSettingsToFile('alarm_cnt', alarm_cnt);
-  } else if (message.data['table'] == 'notice') {
-    notice_cnt++;
-    saveSettingsToFile('notice_cnt', notice_cnt);
+showNotification(Map<String, dynamic> data) async {
+  if (Platform.isIOS) {
+    return;
   }
-  print('add -> alarm_cnt: $alarm_cnt, notice_cnt: $notice_cnt');
-  await FlutterAppBadger.updateBadgeCount(alarm_cnt + notice_cnt);
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  AndroidNotificationDetails androidPlatformChannelSpecifics =
+      AndroidNotificationDetails(channel.id, channel.name,
+          channelDescription: channel.description,
+          sound: RawResourceAndroidNotificationSound('slow_spring_board'),
+          importance: Importance.max,
+          priority: Priority.high,
+          ticker: 'ticker');
+  const IOSNotificationDetails iOSPlatformChannelSpecifics =
+      IOSNotificationDetails(sound: 'slow_spring_board.aiff');
+  NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: iOSPlatformChannelSpecifics);
+
+  await flutterLocalNotificationsPlugin.show(
+      0, data["title"], data["body"], platformChannelSpecifics,
+      payload: json.encode(data));
 }
 
-Future<String> setAlarmAndNoticeCount(String table) async {
-  Map<String, dynamic> settings = await readSettingsFromFile();
-  int alarm_cnt = settings['alarm_cnt'] ?? 0;
-  int notice_cnt = settings['notice_cnt'] ?? 0;
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'weare', // id
+  'High Importance Notifications',
+  description: 'High Importance Notifications Description', // title
+  importance: Importance.max,
+);
 
-  if (table == 'alarm') {
-    alarm_cnt = 0;
-    saveSettingsToFile('alarm_cnt', alarm_cnt);
-  } else if (table == 'notice') {
-    notice_cnt = 0;
-    saveSettingsToFile('notice_cnt', notice_cnt);
-  }
-  if (alarm_cnt == 0 && notice_cnt == 0) {
-    await FlutterAppBadger.removeBadge();
-    Eraser.clearAllAppNotifications();
-  } else {
-    await FlutterAppBadger.updateBadgeCount(alarm_cnt + notice_cnt);
-  }
+void _handleMessage(RemoteMessage message) async {
+  showNotification(message.data);
+  //await setBadge(message.data['table'], false);
+}
 
-  print('delete -> alarm_cnt: $alarm_cnt, notice_cnt: $notice_cnt');
+Future<void> setBadge(String table, bool is_zero) async {
+  try {
+    int a_cnt = await LocalService.getAlarmBadgeCnt();
+    int n_cnt = await LocalService.getNoticeBadgeCnt();
+    print(' step1 -> a_cnt: $a_cnt, n_cnt: $n_cnt');
+    if (table == 'alarm') {
+      a_cnt++;
+      if (is_zero) {
+        a_cnt = 0;
+      }
+    } else if (table == 'notice') {
+      n_cnt++;
+      if (is_zero) {
+        n_cnt = 0;
+      }
+    }
+    LocalService.setAlarmBadgeCnt(a_cnt);
+    LocalService.setNoticeBadgeCnt(n_cnt);
+    print(' step2 -> a_cnt: $a_cnt, n_cnt: $n_cnt');
+    if (a_cnt == 0 && n_cnt == 0) {
+      await FlutterAppBadger.removeBadge();
+      Eraser.clearAllAppNotifications();
+    } else {
+      await FlutterAppBadger.updateBadgeCount(a_cnt + n_cnt);
+    }
+  } catch (e) {
+    print(e);
+  }
+  // if (alarm_cnt == 0 && notice_cnt == 0) {
+  //   await FlutterAppBadger.removeBadge();
+  //   Eraser.clearAllAppNotifications();
+  // } else {
+  //   await FlutterAppBadger.updateBadgeCount(alarm_cnt + notice_cnt);
+  // }
+}
+
+Future<String> setAlarmAndNoticeCountZero() async {
+  await FlutterAppBadger.removeBadge();
+  Eraser.clearAllAppNotifications();
+  // await setBadge(table, true);
+  // int a_cnt = await LocalService.getAlarmBadgeCnt();
+  // int n_cnt = await LocalService.getNoticeBadgeCnt();
+  //print('delete -> alarm_cnt: $alarm_cnt, notice_cnt: $notice_cnt');
   Map response = {};
   Map data = {};
-  data['alarm_cnt'] = alarm_cnt;
-  data['notice_cnt'] = notice_cnt;
+  data['alarm_cnt'] = 0;
+  data['notice_cnt'] = 0;
   response['code'] = 100;
   response['message'] = '푸시알람 카운팅';
   response['data'] = data;
   return json.encode(response);
 }
 
-Future<String> getAlarmCount() async {
-  Map<String, dynamic> settings = await readSettingsFromFile();
-  int alarm_cnt = settings['alarm_cnt'] ?? 0;
-  int notice_cnt = settings['notice_cnt'] ?? 0;
+Future<String> setPermissionAlarm(Map obj) async {
+  int cnt = obj['is_allow_alarm'];
+  if (cnt == 0) {
+    await FirebaseMessaging.instance.unsubscribeFromTopic('weare');
+  } else if (cnt == 1) {
+    await FirebaseMessaging.instance.subscribeToTopic('weare');
+  }
+  LocalService.setWantAlarm(cnt);
+
   Map response = {};
   Map data = {};
-  data['alarm_cnt'] = alarm_cnt;
-  data['notice_cnt'] = notice_cnt;
   response['code'] = 100;
-  response['message'] = '푸시알람 카운팅';
+  response['message'] = '알람 허용 여부 변경';
   response['data'] = data;
   return json.encode(response);
+}
+
+Future<String> getPermissionAlarm() async {
+  int cnt = await LocalService.getWantAlarm();
+
+  Map response = {};
+  Map data = {};
+  data['is_want_alarm'] = cnt;
+  response['code'] = 100;
+  response['message'] = '알람 허용 여부 가져오기';
+  response['data'] = data;
+  return json.encode(response);
+}
+
+getAlarmCount() async {
+  try {
+    int a_cnt = await LocalService.getAlarmBadgeCnt();
+    int n_cnt = await LocalService.getNoticeBadgeCnt();
+
+    Map response = {};
+    Map data = {};
+    data['alarm_cnt'] = a_cnt;
+    data['notice_cnt'] = n_cnt;
+    response['code'] = 100;
+    response['message'] = '푸시알람 카운팅';
+    response['data'] = data;
+    return json.encode(response);
+  } catch (e) {
+    print(e);
+  }
+}
+
+getMacAddress() async {
+  try {
+    int a_cnt = await LocalService.getAlarmBadgeCnt();
+    int n_cnt = await LocalService.getNoticeBadgeCnt();
+
+    Map response = {};
+    Map data = {};
+    String platformVersion;
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      platformVersion = await GetMac.macAddress;
+    } on PlatformException {
+      platformVersion = 'Failed to get Device MAC Address.';
+    }
+    print(platformVersion);
+    data['mac_address'] = await GetMac.macAddress;
+    response['code'] = 100;
+    response['message'] = '맥어드레스';
+    response['data'] = data;
+    return json.encode(response);
+  } catch (e) {
+    print(e);
+  }
 }
 
 void _removeBadge() {
@@ -163,6 +312,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  String fcmToken = "";
   String _appBadgeSupported = 'Unknown';
 
   final GlobalKey webViewKey = GlobalKey();
@@ -187,10 +338,19 @@ class _MyAppState extends State<MyApp> {
   late StreamSubscription<FGBGType> subscription;
   @override
   void initState() {
+    requestingPermissionForIOS();
+    getToken();
     super.initState();
     initPlatformState();
     subscription = FGBGEvents.stream.listen((event) async {
       print(event); // FGBGType.foreground or FGBGType.background
+      if (event == FGBGType.foreground) {
+        getAlarmCount();
+        print("fore");
+      } else {
+        getAlarmCount();
+        print("back");
+      }
     });
     pullToRefreshController = PullToRefreshController(
       options: PullToRefreshOptions(
@@ -205,6 +365,12 @@ class _MyAppState extends State<MyApp> {
         }
       },
     );
+  }
+
+  getToken() async {
+    String? token = await _firebaseMessaging.getToken();
+    fcmToken = token!;
+    print("fcmToken: $fcmToken");
   }
 
   @override
@@ -237,12 +403,14 @@ class _MyAppState extends State<MyApp> {
 
   Future<String> login(Map req) async {
     MainViewModel viewModel = MainViewModel(req['login_type']);
+    if (req['login_type'] == 0) viewModel.setId(req['id']);
     Map response = {};
 
     await viewModel.initPrefs();
     await viewModel.login();
     setState(() {});
     response = viewModel.GetLoginData();
+
     return json.encode(response);
   }
 
@@ -274,6 +442,28 @@ class _MyAppState extends State<MyApp> {
     return json.encode(response);
   }
 
+  requestingPermissionForIOS() async {
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true);
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print("User granted permission");
+    } else if (settings.authorizationStatus ==
+        AuthorizationStatus.provisional) {
+      print("User granted provisional permission");
+    } else {
+      print("User declined or has not accepted permission");
+    }
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+            alert: true, badge: true, sound: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
@@ -288,8 +478,8 @@ class _MyAppState extends State<MyApp> {
                   children: [
                     InAppWebView(
                       key: webViewKey,
-                      initialUrlRequest: URLRequest(
-                          url: Uri.parse("http://172.30.1.88:3000/")),
+                      initialUrlRequest:
+                          URLRequest(url: Uri.parse("https://weare-first.com")),
                       initialOptions: options,
                       pullToRefreshController: pullToRefreshController,
                       onWebViewCreated: (controller) {
@@ -312,9 +502,7 @@ class _MyAppState extends State<MyApp> {
                         webViewController?.addJavaScriptHandler(
                             handlerName: "native_alarm_count_zero",
                             callback: (args) async {
-                              Map table_name = json.decode(args[0]);
-                              return await setAlarmAndNoticeCount(
-                                  table_name['table']);
+                              return await setAlarmAndNoticeCountZero();
                             });
                         webViewController?.addJavaScriptHandler(
                             handlerName: "native_get_alarm_count",
@@ -322,17 +510,20 @@ class _MyAppState extends State<MyApp> {
                               return await getAlarmCount();
                             });
                         webViewController?.addJavaScriptHandler(
+                            handlerName: "native_get_mac_address",
+                            callback: (args) async {
+                              return await getMacAddress();
+                            });
+                        webViewController?.addJavaScriptHandler(
                             handlerName: "get_allow_alarm",
                             callback: (args) async {
-                              print("alarm_cnt: ");
-                              return "{}";
+                              return getPermissionAlarm();
                             });
                         webViewController?.addJavaScriptHandler(
                             handlerName: "set_allow_alarm",
                             callback: (args) async {
-                              print(args[0]['is_allow_alarm'].runtimeType);
-                              _setAlarmSetting(args[0]['is_allow_alarm']);
-                              return await "{}";
+                              return await setPermissionAlarm(
+                                  json.decode(args[0]));
                             });
                       },
                       onLoadStart: (controller, url) {
