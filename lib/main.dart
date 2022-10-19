@@ -336,6 +336,7 @@ class _MyAppState extends State<MyApp> {
   double progress = 0;
   final urlController = TextEditingController();
   late StreamSubscription<FGBGType> subscription;
+
   @override
   void initState() {
     requestingPermissionForIOS();
@@ -464,12 +465,35 @@ class _MyAppState extends State<MyApp> {
             alert: true, badge: true, sound: true);
   }
 
+  DateTime? currentBackPressTime;
+
+  onWillPop() {
+    DateTime now = DateTime.now();
+    if (currentBackPressTime == null ||
+        now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
+      currentBackPressTime = now;
+      Fluttertoast.showToast(
+          msg: "'뒤로' 버튼을 한번 더 누르시면 종료됩니다.",
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: const Color(0xff6E6E6E),
+          fontSize: 20,
+          toastLength: Toast.LENGTH_SHORT);
+      return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+    // SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+    SystemChrome.setEnabledSystemUIOverlays(
+        [SystemUiOverlay.top, SystemUiOverlay.bottom]);
     return GetMaterialApp(
         home: WillPopScope(
-            onWillPop: () => _goBack(context),
+            onWillPop: () async {
+              bool result = onWillPop();
+              return await Future.value(result);
+            },
             child: Scaffold(
                 body: SafeArea(
                     child: Column(children: <Widget>[
