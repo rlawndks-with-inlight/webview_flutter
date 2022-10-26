@@ -13,6 +13,7 @@ class LocalService {
   static String PREF_ALARM_CNT = "PREF_ALARM_CNT";
   static String PREF_NOTICE_CNT = "PREF_NOTICE_CNT";
   static String WANT_ALARM = "WANT_ALARM";
+  static String WEBVIEW_URL = "https://weare-first.com";
 
   static void setCenterEmail(String email) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

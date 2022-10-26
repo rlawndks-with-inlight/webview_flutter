@@ -25,7 +25,7 @@ import 'package:mac_address/mac_address.dart';
 
 Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    showNotification(message.data);
+    //showNotification(message.data);
     //await setBadge(message.data['table'], false);
   } catch (e) {
     print(e);
@@ -353,6 +353,20 @@ class _MyAppState extends State<MyApp> {
         print("back");
       }
     });
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('A new onMessageOpenedApp event was published!');
+      print("onMessageOpenedApp data: ${message.data.toString()}");
+      print(
+          "onMessageOpenedApp notification:  ${message.notification.toString()}");
+      if (message.data['url'] != null) {
+        setState(() {
+          webViewController?.loadUrl(
+              urlRequest: URLRequest(
+                  url: Uri.parse(
+                      LocalService.WEBVIEW_URL + message.data['url'])));
+        });
+      }
+    });
     pullToRefreshController = PullToRefreshController(
       options: PullToRefreshOptions(
         color: Colors.blue,
@@ -503,7 +517,7 @@ class _MyAppState extends State<MyApp> {
                     InAppWebView(
                       key: webViewKey,
                       initialUrlRequest:
-                          URLRequest(url: Uri.parse("https://weare-first.com")),
+                          URLRequest(url: Uri.parse(LocalService.WEBVIEW_URL)),
                       initialOptions: options,
                       pullToRefreshController: pullToRefreshController,
                       onWebViewCreated: (controller) {
