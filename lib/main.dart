@@ -213,13 +213,16 @@ Future<void> setBadge(String table, bool is_zero) async {
   // }
 }
 
-Future<String> setAlarmAndNoticeCountZero() async {
+Future<String> setAlarmAndNoticeCountZero(
+    int last_alarm_cnt, int last_notice_cnt) async {
   await FlutterAppBadger.removeBadge();
   Eraser.clearAllAppNotifications();
   // await setBadge(table, true);
   // int a_cnt = await LocalService.getAlarmBadgeCnt();
   // int n_cnt = await LocalService.getNoticeBadgeCnt();
   //print('delete -> alarm_cnt: $alarm_cnt, notice_cnt: $notice_cnt');
+  LocalService.setLastNoticeCnt(last_notice_cnt);
+  LocalService.setLastAlarmCnt(last_alarm_cnt);
   Map response = {};
   Map data = {};
   data['alarm_cnt'] = 0;
@@ -259,17 +262,17 @@ Future<String> getPermissionAlarm() async {
   return json.encode(response);
 }
 
-getAlarmCount() async {
+getAlarmAndNoticeLastCount() async {
   try {
-    int a_cnt = await LocalService.getAlarmBadgeCnt();
-    int n_cnt = await LocalService.getNoticeBadgeCnt();
+    int a_cnt = await LocalService.getLastAlarmCnt();
+    int n_cnt = await LocalService.getLastNoticeCnt();
 
     Map response = {};
     Map data = {};
-    data['alarm_cnt'] = a_cnt;
-    data['notice_cnt'] = n_cnt;
+    data['alarm_last_pk'] = a_cnt;
+    data['notice_last_pk'] = n_cnt;
     response['code'] = 100;
-    response['message'] = '푸시알람 카운팅';
+    response['message'] = '마지막 체크 카운팅';
     response['data'] = data;
     return json.encode(response);
   } catch (e) {
@@ -346,10 +349,8 @@ class _MyAppState extends State<MyApp> {
     subscription = FGBGEvents.stream.listen((event) async {
       print(event); // FGBGType.foreground or FGBGType.background
       if (event == FGBGType.foreground) {
-        getAlarmCount();
         print("fore");
       } else {
-        getAlarmCount();
         print("back");
       }
     });
@@ -480,18 +481,32 @@ class _MyAppState extends State<MyApp> {
   }
 
   DateTime? currentBackPressTime;
-
+  int clickBackCount = 0;
   onWillPop() {
     DateTime now = DateTime.now();
-    if (currentBackPressTime == null ||
-        now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
+    print(currentBackPressTime);
+
+    if ((currentBackPressTime == null ||
+            now.difference(currentBackPressTime!) >
+                const Duration(seconds: 2)) ||
+        clickBackCount < 3) {
+      print(345);
       currentBackPressTime = now;
-      Fluttertoast.showToast(
-          msg: "'뒤로' 버튼을 한번 더 누르시면 종료됩니다.",
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: const Color(0xff6E6E6E),
-          fontSize: 20,
-          toastLength: Toast.LENGTH_SHORT);
+      if (now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
+        clickBackCount = 1;
+      } else {
+        clickBackCount++;
+      }
+      print("clickBackCount: $clickBackCount");
+      if (clickBackCount == 3) {
+        Fluttertoast.showToast(
+            msg: "'뒤로' 버튼을 한번 더 누르시면 종료됩니다.",
+            gravity: ToastGravity.BOTTOM,
+            backgroundColor: const Color(0xff6E6E6E),
+            fontSize: 20,
+            toastLength: Toast.LENGTH_SHORT);
+      }
+
       return false;
     }
     return true;
@@ -506,6 +521,9 @@ class _MyAppState extends State<MyApp> {
         home: WillPopScope(
             onWillPop: () async {
               bool result = onWillPop();
+              if (!result) {
+                return _goBack(context);
+              }
               return await Future.value(result);
             },
             child: Scaffold(
@@ -540,17 +558,15 @@ class _MyAppState extends State<MyApp> {
                         webViewController?.addJavaScriptHandler(
                             handlerName: "native_alarm_count_zero",
                             callback: (args) async {
-                              return await setAlarmAndNoticeCountZero();
+                              return await setAlarmAndNoticeCountZero(
+                                  args[0]['alarm_last_pk'],
+                                  args[0]['notice_last_pk']);
                             });
                         webViewController?.addJavaScriptHandler(
-                            handlerName: "native_get_alarm_count",
+                            handlerName:
+                                "native_get_alarm_and_notice_last_count",
                             callback: (args) async {
-                              return await getAlarmCount();
-                            });
-                        webViewController?.addJavaScriptHandler(
-                            handlerName: "native_get_mac_address",
-                            callback: (args) async {
-                              return await getMacAddress();
+                              return await getAlarmAndNoticeLastCount();
                             });
                         webViewController?.addJavaScriptHandler(
                             handlerName: "get_allow_alarm",

@@ -14,6 +14,8 @@ class LocalService {
   static String PREF_NOTICE_CNT = "PREF_NOTICE_CNT";
   static String WANT_ALARM = "WANT_ALARM";
   static String WEBVIEW_URL = "https://weare-first.com";
+  static String LAST_CHECK_ALARM_COUNT = "LAST_CHECK_ALARM_COUNT";
+  static String LAST_CHECK_NOTICE_COUNT = "LAST_CHECK_NOTICE_COUNT";
 
   static void setCenterEmail(String email) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -105,6 +107,30 @@ class LocalService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final int cnt = prefs.getInt(WANT_ALARM) ?? 1;
+    return cnt;
+  }
+
+  static void setLastNoticeCnt(int cnt) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setInt(LAST_CHECK_NOTICE_COUNT, cnt);
+  }
+
+  static Future<int> getLastNoticeCnt() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final int cnt = prefs.getInt(LAST_CHECK_NOTICE_COUNT) ?? 0;
+    return cnt;
+  }
+
+  static void setLastAlarmCnt(int cnt) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setInt(LAST_CHECK_ALARM_COUNT, cnt);
+  }
+
+  static Future<int> getLastAlarmCnt() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final int cnt = prefs.getInt(LAST_CHECK_ALARM_COUNT) ?? 1;
     return cnt;
   }
 }
