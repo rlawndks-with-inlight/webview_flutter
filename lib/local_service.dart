@@ -13,9 +13,11 @@ class LocalService {
   static String PREF_ALARM_CNT = "PREF_ALARM_CNT";
   static String PREF_NOTICE_CNT = "PREF_NOTICE_CNT";
   static String WANT_ALARM = "WANT_ALARM";
-  static String WEBVIEW_URL = "https://weare-first.com";
+  static String WEBVIEW_URL = "http://172.30.1.50:3000";
   static String LAST_CHECK_ALARM_COUNT = "LAST_CHECK_ALARM_COUNT";
   static String LAST_CHECK_NOTICE_COUNT = "LAST_CHECK_NOTICE_COUNT";
+  static String NOTIFICATION_TOPIC = "weare";
+  static String OPEN_APP_URI = "";
 
   static void setCenterEmail(String email) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -132,5 +134,17 @@ class LocalService {
     await prefs.reload();
     final int cnt = prefs.getInt(LAST_CHECK_ALARM_COUNT) ?? 1;
     return cnt;
+  }
+
+  static void setOpenAppUri(String uri) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setString(OPEN_APP_URI, uri);
+  }
+
+  static Future<String> getOpenAppUri() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    String uri = prefs.getString(OPEN_APP_URI) ?? "";
+    return uri;
   }
 }

@@ -22,7 +22,10 @@ import 'package:untitled/global.dart';
 import 'package:untitled/local_service.dart';
 import 'package:provider/provider.dart';
 import 'package:mac_address/mac_address.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:android_intent/android_intent.dart';
 
+String OPEN_APP_URL = "";
 Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     //showNotification(message.data);
@@ -159,6 +162,7 @@ showNotification(Map<String, dynamic> data) async {
   NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
       iOS: iOSPlatformChannelSpecifics);
+  LocalService.OPEN_APP_URI = data['url'] ?? "";
 
   await flutterLocalNotificationsPlugin.show(
       0, data["title"], data["body"], platformChannelSpecifics,
@@ -181,7 +185,6 @@ Future<void> setBadge(String table, bool is_zero) async {
   try {
     int a_cnt = await LocalService.getAlarmBadgeCnt();
     int n_cnt = await LocalService.getNoticeBadgeCnt();
-    print(' step1 -> a_cnt: $a_cnt, n_cnt: $n_cnt');
     if (table == 'alarm') {
       a_cnt++;
       if (is_zero) {
@@ -195,7 +198,6 @@ Future<void> setBadge(String table, bool is_zero) async {
     }
     LocalService.setAlarmBadgeCnt(a_cnt);
     LocalService.setNoticeBadgeCnt(n_cnt);
-    print(' step2 -> a_cnt: $a_cnt, n_cnt: $n_cnt');
     if (a_cnt == 0 && n_cnt == 0) {
       await FlutterAppBadger.removeBadge();
       Eraser.clearAllAppNotifications();
@@ -294,7 +296,6 @@ getMacAddress() async {
     } on PlatformException {
       platformVersion = 'Failed to get Device MAC Address.';
     }
-    print(platformVersion);
     data['mac_address'] = await GetMac.macAddress;
     response['code'] = 100;
     response['message'] = '맥어드레스';
@@ -303,6 +304,23 @@ getMacAddress() async {
   } catch (e) {
     print(e);
   }
+}
+
+_launchURL(URL) async {
+  var url = "${URL}";
+  if (await canLaunch(url)) {
+    await launch(url);
+  } else {
+    throw 'Could not launch $url';
+  }
+}
+
+createIntent(url, company) async {
+  if (Platform.isAndroid) {
+    final AndroidIntent intent = AndroidIntent(
+        action: 'action_view', data: Uri.encodeFull(url), package: company);
+    intent.launch();
+  } else {}
 }
 
 void _removeBadge() {
@@ -347,7 +365,6 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     initPlatformState();
     subscription = FGBGEvents.stream.listen((event) async {
-      print(event); // FGBGType.foreground or FGBGType.background
       if (event == FGBGType.foreground) {
         print("fore");
       } else {
@@ -368,6 +385,7 @@ class _MyAppState extends State<MyApp> {
         });
       }
     });
+
     pullToRefreshController = PullToRefreshController(
       options: PullToRefreshOptions(
         color: Colors.blue,
@@ -484,20 +502,17 @@ class _MyAppState extends State<MyApp> {
   int clickBackCount = 0;
   onWillPop() {
     DateTime now = DateTime.now();
-    print(currentBackPressTime);
 
     if ((currentBackPressTime == null ||
             now.difference(currentBackPressTime!) >
                 const Duration(seconds: 2)) ||
         clickBackCount < 3) {
-      print(345);
       currentBackPressTime = now;
       if (now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
         clickBackCount = 1;
       } else {
         clickBackCount++;
       }
-      print("clickBackCount: $clickBackCount");
       if (clickBackCount == 3) {
         Fluttertoast.showToast(
             msg: "'뒤로' 버튼을 한번 더 누르시면 종료됩니다.",
@@ -534,8 +549,9 @@ class _MyAppState extends State<MyApp> {
                   children: [
                     InAppWebView(
                       key: webViewKey,
-                      initialUrlRequest:
-                          URLRequest(url: Uri.parse(LocalService.WEBVIEW_URL)),
+                      initialUrlRequest: URLRequest(
+                          url: Uri.parse(
+                              "${LocalService.WEBVIEW_URL}${LocalService.OPEN_APP_URI}")),
                       initialOptions: options,
                       pullToRefreshController: pullToRefreshController,
                       onWebViewCreated: (controller) {
@@ -578,6 +594,17 @@ class _MyAppState extends State<MyApp> {
                             callback: (args) async {
                               return await setPermissionAlarm(
                                   json.decode(args[0]));
+                            });
+                        webViewController?.addJavaScriptHandler(
+                            handlerName: "open_internet_browser",
+                            callback: (args) async {
+                              return await launchUrl(args[0]['url']);
+                            });
+                        webViewController?.addJavaScriptHandler(
+                            handlerName: "native_app_open_youtube",
+                            callback: (args) async {
+                              return await createIntent(
+                                  args[0]['url'], args[0]['company']);
                             });
                       },
                       onLoadStart: (controller, url) {
