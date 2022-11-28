@@ -38,10 +38,12 @@
            android:exported="true">
            <intent-filter android:label="flutter_web_auth">
                <action android:name="android.intent.action.VIEW" />
+               <action android:name="android.intent.action.SEND" />
                <category android:name="android.intent.category.DEFAULT" />
                <category android:name="android.intent.category.BROWSABLE" />
                <!-- Redirect URI, "kakao${YOUR_NATIVE_APP_KEY}://oauth" 형식 -->
                <data android:scheme="kakao746c2192ff19a2d5be500ce481428445" android:host="oauth"/>
+               <data android:mimeType="text/plain" />
            </intent-filter>
        </activity>
        <activity android:name="com.navercorp.nid.oauth.activity.NidOAuthWebViewActivity"

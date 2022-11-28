@@ -347,6 +347,10 @@ class _MyAppState extends State<MyApp> {
       ),
       android: AndroidInAppWebViewOptions(
         useHybridComposition: true,
+        useWideViewPort: true,
+        loadWithOverviewMode: true,
+        builtInZoomControls: true,
+        displayZoomControls: true,
       ),
       ios: IOSInAppWebViewOptions(
         allowsInlineMediaPlayback: true,

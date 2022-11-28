@@ -13,7 +13,7 @@ class LocalService {
   static String PREF_ALARM_CNT = "PREF_ALARM_CNT";
   static String PREF_NOTICE_CNT = "PREF_NOTICE_CNT";
   static String WANT_ALARM = "WANT_ALARM";
-  static String WEBVIEW_URL = "https://weare-first.com";
+  static String WEBVIEW_URL = "https://weer-front.vercel.app";
   static String LAST_CHECK_ALARM_COUNT = "LAST_CHECK_ALARM_COUNT";
   static String LAST_CHECK_NOTICE_COUNT = "LAST_CHECK_NOTICE_COUNT";
   static String NOTIFICATION_TOPIC = "weare";
